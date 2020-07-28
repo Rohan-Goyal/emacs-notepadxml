@@ -63,7 +63,7 @@
   (setq nodelist-clean (seq-filter (lambda (y) (> (length y) 2)) nodelist)) ;Remove the "empty" sets of words
   (dolist (kw nodelist-clean)
     (puthash  (cdr (car (nth 1 kw))) (split-string (nth 2 kw)) adict)
-    (message "helloworld"))
+    )
   adict
   )
 
@@ -71,7 +71,7 @@
 (defun font-defaults-from-hash (hash conversion-table)
   (setq defaults ())
   (maphash (lambda (k v)
-             (push ((regexp-opt v 'words) . (gethash k conversion-table)) regexes)
+             (push `(,(regexp-opt v 'words) . ,(assoc k conversion-table)) defaults)
              )
            hash
            )
@@ -112,19 +112,37 @@
 (write table "./table.el")
 
 (setq conversion-table-default
-                                        ; A hash table of the form (kw1:font-lock-whatever-face)
+                                        ; An assoc-list of the form (kw1 . font-lock-whatever-face)
                                         ; And so on
                                         ; How it is handled
-      ())
+      '(
+       ("Keywords1" . font-lock-type-face)
+       ("Keywords2" . font-lock-constant-face)
+       ("Keywords3" . font-lock-builtin-face)
+       ("Keywords4" . font-lock-keyword-face)
+       ("Keywords5" . font-lock-reference-face)
+       ("Keywords6" . font-lock-warning-face)
+       ("Keywords7" . font-lock-type-face)
+       ("Keywords8" . font-lock-constant-face)
+
+       ("Words1" . font-lock-type-face)
+       ("Words2" . font-lock-constant-face)
+       ("Words3" . font-lock-builtin-face)
+       ("Words4" . font-lock-keyword-face)
+       ("Words5" . font-lock-reference-face)
+       ("Words6" . font-lock-warning-face)
+       ("Words7" . font-lock-type-face)
+       ("Words8" . font-lock-constant-face)
+       ; Notepad uses two different syntaxes. So this accounts for both.
+       ))
 
 "
 How we're handling the conversion table:
 We create a barebones, unintelligent default. It has keys corresponding to both Keywords and Words versions of the XML. So Keywords1: \"\" and Words1: \"\" map to the same thing\"
-The users can create their own
 "
 
-                                        ;(setq font-defaults (font-defaults-from-hash table converter))
-                                        ;(write font-defaults "fontlock.el") ; Generates and saves fontlock-defaults.
+(setq font-defaults (font-defaults-from-hash table conversion-table-default))
+(write font-defaults "./fontlock.el") ; Generates and saves fontlock-defaults.
 
 (setq words (apply #'append (hash-table-values table)))
 (setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
@@ -132,20 +150,28 @@ The users can create their own
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
 (setq my-table (new-syntax-table comment-string base-table))
-(write my-table "syntax-table.el") ; Not strictly necessary
+(write my-table "./syntax-table.el") ; Not strictly necessary
 
 
 
 "User-defined vars:
-Notepad file
-Base synTable
+- Notepad file
+- Base synTable
+- Base mode
+- Comment symbol
+- Conversion table
+
 Conversion factors:
 A set can either be a keyword, a type, a builtin, a const, or a reference. Func/var names also exist if necessary.
 So the table is user-defined: They set each keyword set to one of the above options.
 So it becomes an assoc-list, between the string \"Keywords1\" and the variable 'font-lock-whatever-face.
 "
 
+"
+How the user configures their thing:
+Filename, basetable, basemode, comment-string can all be set in a simple ELISP assoc-list elsewhere. So we specify a template, write that to a file, and ask them for the conf location when the script is called. Based on the vals read in the conf, generate the output \"*-mode.el\" file
 
+Conversion-table can also be defined in it's own file, based on the default. So write the default to a file, distribute that, and let them change it. When the program is run, it asks which file to read the conversiontable from."
 
 
 "
@@ -156,3 +182,4 @@ We let the user define a mode and syntable to inherit (default to one of the C-m
 For auto-complete, we use https://justinhj.github.io/2018/10/24/radix-trees-dash-and-company-mode.html
 So once we have the hash, we basically iterate over it to get all the keywords and store them in a list. Then we use seq-reduce magic to pass them to a radixtree. We write this radixtree to a file.
 "
+
