@@ -3,7 +3,7 @@
 ;; See what I did with the gmatscript.el file?
 ;; It's basically an automated tool to create an elisp script file like that (syntaxt highlighting only for now, eventually auto-complete) from a notepad xml file
 (require 'xml)
-
+(require 'radix-tree)
 
 (defun write (obj file)
   (write-region (format "%S" obj) nil file))
@@ -70,6 +70,10 @@
 
 (write regexes "regex.el") ; Generates and saves regexes. Now, we use these regexes, the conversion table, and the keys list, to set the font-lock pairs
 
+(setq words (apply #'append (hash-table-values table)))
+(setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
+
+(write radix "./radix.el")
 
 "
 Nums, operators, delimiters can be fairly standard (maybe just inherit from prog-mode). Ignore indentation since that's tricky
@@ -80,6 +84,17 @@ For auto-complete, we use https://justinhj.github.io/2018/10/24/radix-trees-dash
 So once we have the hash, we basically iterate over it to get all the keywords and store them in a list. Then we use seq-reduce magic to pass them to a radixtree. We write this radixtree to a file.
 "
 
+(defun new-syntax-table (comment-start base) ;Base is the table from which to inherit. Comment start should be in the "char format"
+  (if (stringp comment-start)
+      (setq comment-char (string-to-character comment-start))
+    (setq comment-char comment-start))
 
+  (let ( (synTable (make-syntax-table base)))
+    (modify-syntax-entry comment-char "<" synTable)
+    (modify-syntax-entry ?\n ">" synTable) ; Modifies the comment syntax
+
+    synTable
+    )
+  )
 
 
