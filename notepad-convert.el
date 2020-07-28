@@ -5,14 +5,14 @@
 (require 'xml)
 (require 'radix-tree)
 
-(defun write (obj file)
-  (write-region (format "%S" obj) nil file))
 
 ;; We need to mark comments as such in the syntax table. Also string delimiters.
 ;; We also need to develop the lists of special words based on the keywords.
 ;; We also need to set the styles for delimiters
 ;; In the long run, autocomplete should use the words defined.
 ;; TODO: Comprehensive notepad delimiter spec
+(defun write (obj file)
+  (write-region (format "%S" obj) nil file))
 
 (defun mode-data (head)
                                         ;Head is the root of the XML file.
@@ -71,7 +71,7 @@
 (defun font-defaults-from-hash (hash conversion-table)
   (setq defaults ())
   (maphash (lambda (k v)
-             (push `(,(regexp-opt v 'words) . ,(assoc k conversion-table)) defaults)
+             (push `(,(regexp-opt v 'words) . ,(cdr (assoc k conversion-table))) defaults)
              )
            hash
            )
@@ -92,24 +92,16 @@
   )
 
 
-                                        ; Actual execution takes place here.
 
+
+                                        ; Actual execution takes place here.
 
 
                                         ; User-defined variables
 (setq file "./notepad++.xml")
-
 (setq base-table python-mode-syntax-table)
 (setq comment-string "%") ; Eventually, get this from the XML, but it's nontrivial
-
-(setq xmltree (xml-parse-file file))
-(write xmltree "./notepad-xml.el")
-
-(setq valid-nodes (find-valid-nodes (car xmltree)))
-(write valid-nodes "./validnodes.el")
-
-(setq table (table-from-nodes valid-nodes))
-(write table "./table.el")
+(setq base-mode 'python-mode)
 
 (setq conversion-table-default
                                         ; An assoc-list of the form (kw1 . font-lock-whatever-face)
@@ -135,11 +127,23 @@
        ("Words8" . font-lock-constant-face)
        ; Notepad uses two different syntaxes. So this accounts for both.
        ))
-
 "
 How we're handling the conversion table:
 We create a barebones, unintelligent default. It has keys corresponding to both Keywords and Words versions of the XML. So Keywords1: \"\" and Words1: \"\" map to the same thing\"
 "
+
+
+                                        ; Main process
+
+(setq xmltree (xml-parse-file file))
+;(write xmltree "./notepad-xml.el")
+
+(setq valid-nodes (find-valid-nodes (car xmltree)))
+;(write valid-nodes "./validnodes.el")
+
+(setq table (table-from-nodes valid-nodes))
+;(write table "./table.el")
+
 
 (setq font-defaults (font-defaults-from-hash table conversion-table-default))
 (write font-defaults "./fontlock.el") ; Generates and saves fontlock-defaults.
@@ -150,10 +154,32 @@ We create a barebones, unintelligent default. It has keys corresponding to both 
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
 (setq my-table (new-syntax-table comment-string base-table))
-(write my-table "./syntax-table.el") ; Not strictly necessary
+;(write my-table "./syntax-table.el") ; Not strictly necessary
 
 
+                                        ; What follows is a template of sorts for the actual *-mode.el file. Should be quasiquoted and written to afile.
+; TODO: Implement the autoloads
+(setq name (mode-name (mode-data (car xmltree))))
+(setq file-extensions (extensions (mode-data (car xmltree))))
+(setq autolists ())
+(dolist (ext file-extensions)
+  (push `(add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t) autolists)
+  )
 
+(setq template `(
+                 ,(eval ";;;###autoload")
+                 (define-derived-mode ,(make-symbol name) ,base-mode ,name
+                   ;(set-syntax-table ,my-table)
+                   (setq font-lock-defaults '((,font-defaults))))
+
+                 ,(eval ";;;###autoload")
+                 ,(dolist (i autolists)
+                    i)
+                 (provide (make-symbol name))
+                 )
+      )
+
+(write template "./template.el")
 "User-defined vars:
 - Notepad file
 - Base synTable
