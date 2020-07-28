@@ -8,35 +8,52 @@
 (defun write (obj file)
   (write-region (format "%S" obj) nil file))
 
-(defvar file "./notepad++.xml")
-(defvar xmltree (xml-parse-file file))
-(write xmltree "./notepad-xml.el")
-
-
 ;; We need to mark comments as such in the syntax table. Also string delimiters.
 ;; We also need to develop the lists of special words based on the keywords.
 ;; We also need to set the styles for delimiters
 ;; In the long run, autocomplete should use the words defined.
 ;; TODO: Comprehensive notepad delimiter spec
 
-(setq valid-nodes ())
-(defun find-nodes (node)
-  "Walk an xml tree as parsed, to find the node who's name matches Keywords or Words"
-  (when (listp node)
-    (cond
-     (
-      (or
-       (cl-search "Keywords" (xml-get-attribute node 'name))
-       (cl-search "Words" (xml-get-attribute node 'name)))
-      (push node valid-nodes))
-     )
-    (mapc 'find-nodes (xml-node-children node))))
+(defun mode-data (head)
+                                        ;Head is the root of the XML file.
+                                        ; Returns list containing the metadata to determine modename and file extensions
+  (setq children (xml-node-children head))
+  (setq children-clean (car (cdr children)))
+  (setq data (nth 1 children-clean))
+  data
+  )
+
+(defun mode-name (data)
+  (setq name (cdr (nth 0 data)))
+  (setq name (concat (downcase name) "-mode"))
+  name
+  )
+
+(defun file-extensions (data)
+  (setq extension (split-string (cdr (nth 1 data))))
+  (setq new ())
+  (dolist (elem extension)
+    (push (concat "\\." elem "\\'") new))
+  new
+  )
+
+(defun find-valid-nodes (head)
+  (setq valid-nodes ())
+  (defun find-nodes (node)
+    "Walk an xml tree as parsed, to find the node who's name matches Keywords or Words"
+    (when (listp node)
+      (cond
+       (
+        (string-match-p (regexp-opt '("Keywords" "Words")) (xml-get-attribute node 'name))
+        (push node valid-nodes))
+       )
+      (mapc 'find-nodes (xml-node-children node))))
+  (find-nodes head)
+  valid-nodes
+  )
 
 (defun test-node (node)
   (cl-search "Keywords" (xml-get-attribute node 'name)))
-
-(find-nodes (car xmltree))
-(write valid-nodes "./validnodes.el")
 
 
 (defun table-from-nodes (_nodelist) ;In this case, we expect nodelist to be the valid-nodes we defined earlier
@@ -50,43 +67,20 @@
   adict
   )
 
-(defvar conversion-table) ;;Converts from name Keywords1 to objects, Keywords2 to functions, etc. Manually defined, TODO
 
-(setq table (table-from-nodes valid-nodes))
-(write table "./table.el")
-
-
-(defun regexes-from-hash (hash)
-  (defvar regexes ())
+(defun font-defaults-from-hash (hash conversion-table)
+  (setq defaults ())
   (maphash (lambda (k v)
-             (push (regexp-opt v 'words) regexes)
+             (push ((regexp-opt v 'words) . (gethash k conversion-table)) regexes)
              )
-           table
+           hash
            )
-  regexes
+  defaults ; List of pairs. Each pair is like (messy-regex. font-lock-whatever-face)
   )
-(setq regexes (regexes-from-hash table))
-(setq keys (hash-table-keys table))
-
-(write regexes "regex.el") ; Generates and saves regexes. Now, we use these regexes, the conversion table, and the keys list, to set the font-lock pairs
-
-(setq words (apply #'append (hash-table-values table)))
-(setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
-
-(write radix "./radix.el")
-
-"
-Nums, operators, delimiters can be fairly standard (maybe just inherit from prog-mode). Ignore indentation since that's tricky
-
-We let the user define a mode and syntable to inherit (default to one of the C-modes)
-
-For auto-complete, we use https://justinhj.github.io/2018/10/24/radix-trees-dash-and-company-mode.html
-So once we have the hash, we basically iterate over it to get all the keywords and store them in a list. Then we use seq-reduce magic to pass them to a radixtree. We write this radixtree to a file.
-"
 
 (defun new-syntax-table (comment-start base) ;Base is the table from which to inherit. Comment start should be in the "char format"
   (if (stringp comment-start)
-      (setq comment-char (string-to-character comment-start))
+      (setq comment-char (string-to-char comment-start))
     (setq comment-char comment-start))
 
   (let ( (synTable (make-syntax-table base)))
@@ -98,3 +92,67 @@ So once we have the hash, we basically iterate over it to get all the keywords a
   )
 
 
+                                        ; Actual execution takes place here.
+
+
+
+                                        ; User-defined variables
+(setq file "./notepad++.xml")
+
+(setq base-table python-mode-syntax-table)
+(setq comment-string "%") ; Eventually, get this from the XML, but it's nontrivial
+
+(setq xmltree (xml-parse-file file))
+(write xmltree "./notepad-xml.el")
+
+(setq valid-nodes (find-valid-nodes (car xmltree)))
+(write valid-nodes "./validnodes.el")
+
+(setq table (table-from-nodes valid-nodes))
+(write table "./table.el")
+
+(setq conversion-table-default
+                                        ; A hash table of the form (kw1:font-lock-whatever-face)
+                                        ; And so on
+                                        ; How it is handled
+      ())
+
+"
+How we're handling the conversion table:
+We create a barebones, unintelligent default. It has keys corresponding to both Keywords and Words versions of the XML. So Keywords1: \"\" and Words1: \"\" map to the same thing\"
+The users can create their own
+"
+
+                                        ;(setq font-defaults (font-defaults-from-hash table converter))
+                                        ;(write font-defaults "fontlock.el") ; Generates and saves fontlock-defaults.
+
+(setq words (apply #'append (hash-table-values table)))
+(setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
+(write radix "./radix.el")
+                                        ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
+
+(setq my-table (new-syntax-table comment-string base-table))
+(write my-table "syntax-table.el") ; Not strictly necessary
+
+
+
+"User-defined vars:
+Notepad file
+Base synTable
+Conversion factors:
+A set can either be a keyword, a type, a builtin, a const, or a reference. Func/var names also exist if necessary.
+So the table is user-defined: They set each keyword set to one of the above options.
+So it becomes an assoc-list, between the string \"Keywords1\" and the variable 'font-lock-whatever-face.
+"
+
+
+
+
+"
+Nums, operators, delimiters can be fairly standard (maybe just inherit from prog-mode). Ignore indentation since that's tricky
+
+We let the user define a mode and syntable to inherit (default to one of the C-modes)
+
+For auto-complete, we use https://justinhj.github.io/2018/10/24/radix-trees-dash-and-company-mode.html
+So once we have the hash, we basically iterate over it to get all the keywords and store them in a list. Then we use seq-reduce magic to pass them to a radixtree. We write this radixtree to a file.
+"
