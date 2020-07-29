@@ -90,101 +90,99 @@
   )
 
 
-                                        ; User-defined variables
-                                        ; TODO: Wrap these in their own funcs: One for user-config, one for executing, and one for writing the template. Then call them all successively
-(setq file "/home/rohan/tmp/userDefinedLanguages-master/UDLs/Groovy_byGyrm.xml")
-; ~/tmp/userDefinedLanguages-master/UDLs/Awk_byVitaliyDovgan.xml")
-(setq base-table 'python-mode-syntax-table)
-(setq comment-string "#") ; Eventually, get this from the XML, but it's nontrivial
-(setq base-mode 'python-mode)
 
-(setq conversion-table-default
+
+;; Just for reference. Use the notepad-conf.el file to configure these variables. These only provide defaults to avoid ugly errors
+(defun user-config ()
+  (setq xml-file "~/tmp/userDefinedLanguages-master/UDLs/Groovy_byGyrm.xml")
+  (setq base-table 'python-mode-syntax-table)
+  (setq comment-string "#") ; Eventually, get this from the XML, but it's nontrivial
+  (setq base-mode 'python-mode)
+  (setq conversion
                                         ; An assoc-list of the form (kw1 . font-lock-whatever-face)
-                                        ; And so on
-                                        ; How it is handled
-      '(
-       ("Keywords1" . font-lock-type-face)
-       ("Keywords2" . font-lock-constant-face)
-       ("Keywords3" . font-lock-builtin-face)
-       ("Keywords4" . font-lock-keyword-face)
-       ("Keywords5" . font-lock-reference-face)
-       ("Keywords6" . font-lock-warning-face)
-       ("Keywords7" . font-lock-type-face)
-       ("Keywords8" . font-lock-constant-face)
+        '(
+          ("Keywords1" . font-lock-type-face)
+          ("Keywords2" . font-lock-constant-face)
+          ("Keywords3" . font-lock-builtin-face)
+          ("Keywords4" . font-lock-keyword-face)
+          ("Keywords5" . font-lock-reference-face)
+          ("Keywords6" . font-lock-warning-face)
+          ("Keywords7" . font-lock-type-face)
+          ("Keywords8" . font-lock-constant-face)
 
-       ("Words1" . font-lock-type-face)
-       ("Words2" . font-lock-constant-face)
-       ("Words3" . font-lock-builtin-face)
-       ("Words4" . font-lock-keyword-face)
-       ("Words5" . font-lock-reference-face)
-       ("Words6" . font-lock-warning-face)
-       ("Words7" . font-lock-type-face)
-       ("Words8" . font-lock-constant-face)
-       ; Notepad uses two different syntaxes. So this accounts for both.
-       ))
-"
-How we're handling the conversion table:
-We create a barebones, unintelligent default. It has keys corresponding to both Keywords and Words versions of the XML. So Keywords1: \"\" and Words1: \"\" map to the same thing\"
-"
+          ("Words1" . font-lock-type-face)
+          ("Words2" . font-lock-constant-face)
+          ("Words3" . font-lock-builtin-face)
+          ("Words4" . font-lock-keyword-face)
+          ("Words5" . font-lock-reference-face)
+          ("Words6" . font-lock-warning-face)
+          ("Words7" . font-lock-type-face)
+          ("Words8" . font-lock-constant-face)
+                                        ; Notepad uses two different syntaxes. So this accounts for both.
+          )))
 
+(defun process (filename conversion-table)
+  (setq xmltree (xml-parse-file filename))
 
-                                        ; Main process
+  (setq name (mode-name (mode-data (car xmltree))))
+  (setq file-extensions (extensions (mode-data (car xmltree))))
 
-(setq xmltree (xml-parse-file file))
-;(write xmltree "./notepad-xml.el")
+  (setq table (table-from-nodes (find-valid-nodes (car xmltree))))
 
-(setq name (mode-name (mode-data (car xmltree))))
-(setq file-extensions (extensions (mode-data (car xmltree))))
+  (setq font-defaults (font-defaults-from-hash table conversion))
+                                        ; Generates and saves fontlock-defaults.
 
-(setq valid-nodes (find-valid-nodes (car xmltree)))
-;(write valid-nodes "./validnodes.el")
-
-(setq table (table-from-nodes valid-nodes))
-;(write table "./table.el")
-
-(setq font-defaults (font-defaults-from-hash table conversion-table-default))
-;(write font-defaults "./fontlock.el") ; Generates and saves fontlock-defaults.
-
-(setq words (apply #'append (hash-table-values table)))
-(setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
-(write radix "./radix.el")
+  (setq words (apply #'append (hash-table-values table)))
+  (setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
+  (write radix (concat "./" name "-radix.el"))
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
-(setq my-table (new-syntax-table comment-string (symbol-value base-table)))
-;(write my-table "./syntax-table.el") ; Not strictly necessary
-
-
-                                        ; What follows is a template of sorts for the actual *-mode.el file. Should be quasiquoted and written to afile.
-; TODO: Implement the autoloads
-(setq autolists '(progn))
-(dolist (ext file-extensions)
-  (setq autolists (append autolists `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
+  (setq autolists '(progn))
+  (dolist (ext file-extensions)
+    (setq autolists (append autolists `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
+    ) ;; Wrap the autolists in a progn, so the template can execute them all without issues
   )
-; Wrap the autolists in a progn, so the template can execute them all without issues
 
-(setq template `(progn
+(defun conf-interface ()
+  (read-file-name "Select the config file from which to generate the language" "." "notepad-conf.el"))
+
+(defun choose-outfile (default-name)
+  (read-file-name "Where should the resulting mode definition go?" "~/.emacs.d" default-name nil default-name nil))
+
+
+                                        ; TODO: Implement the autoloads
+(defun notepadxml-convert ()
+  (interactive)
+  (user-config) ;Set defaults.
+  (load-file (conf-interface))
+                                        ; Load the key variables from the user configuration
+
+  (process xml-file conversion) ;Write the radixes, set the tables, variables, etc.
+
+                                        ;What follows is a template of sorts for the actual *-mode.el file.
+  (setq template `(progn
                  ;;;###autoload
-                 (define-derived-mode ,(make-symbol name) ,base-mode ,name
-                   (set-syntax-table ;Directly inserting the table would be a disaster for size and readability
-                   (let ( (synTable (make-syntax-table ,base-table)))
-                     (modify-syntax-entry ,(string-to-char comment-string) "<" synTable)
-                     (modify-syntax-entry ?\n ">" synTable) ; Modifies the comment syntax
+                    (define-derived-mode ,(make-symbol name) ,base-mode ,name
+                      (set-syntax-table ;Directly inserting the table would be a disaster for size and readability
+                       (let ( (synTable (make-syntax-table ,base-table)))
+                         (modify-syntax-entry ,(string-to-char comment-string) "<" synTable)
+                         (modify-syntax-entry ?\n ">" synTable) ; Modifies the comment syntax
 
-                     synTable
-                     ))
-                   (setq font-lock-defaults '(,font-defaults)))
+                         synTable
+                         ))
+                      (setq font-lock-defaults '(,font-defaults)))
                  ;;;###autoload
-                 ,autolists
-                 (provide (quote ,(make-symbol name)))
-                 )
-      )
-
-(write template (concat "./" name ".el"))
+                    ,autolists
+                    (provide (quote ,(make-symbol name)))
+                    )
+        )
+  (write template (choose-outfile (concat name ".el"))))
+" The idea is that the user chooses a file in their load-path to write the template to"
 
 "
 TODO:
 - Read user configuration
-- Manage the autoload thing. Maybe it can just ask to autoload instead of adding the comment somehow?
+- Manage the autoload thing. Maybe it can just ask to autoload instead of adding the comment somehow? So once the file is written to the load-path, simply have the user add (require 'whatever) to their .emacs
 "
 
 "
@@ -217,3 +215,8 @@ For auto-complete, we use https://justinhj.github.io/2018/10/24/radix-trees-dash
 So once we have the hash, we basically iterate over it to get all the keywords and store them in a list. Then we use seq-reduce magic to pass them to a radixtree. We write this radixtree to a file.
 "
 
+"
+Imagining the interface:
+User calls this function. We ask them for a config file, which sets the conversion table and also all other factors as assoclists. They give us the file path. We read that file, evaluate all the setqs, and then run our /main/ function.
+Then, they select the output dir, and we call the main function. This outputs the *-mode.el file to the requisite dir. So basically the interactivity we need is to let the users pick a file. Alternatively, we can just output it to somewhere in their load-path.
+"

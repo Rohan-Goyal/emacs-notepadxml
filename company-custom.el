@@ -18,7 +18,7 @@
 (defun get-candidates (prefix)
   "Given a prefix return a list of matching words that begin with it"
   (when (> (length prefix) 2)
-    (radix-tree-keys company-custom-dictionary--words-tree (downcase prefix))))
+    (radix-tree-keys company-custom-dictionary--words-tree prefix)))
 
 
 (defun company-custom-dictionary (command &optional arg &rest ignored)
@@ -35,4 +35,4 @@
 (provide 'company-custom-dictionary)
 
 ;; Push the mode to the list of company backends
-(push 'company-custom-dictionary company-backends)
+(push 'company-groovy company-backends)
