@@ -1,13 +1,13 @@
 (require 'company)
 
-(defun tree-from-file(file-path)
+(defun tree-from-file (file-path)
   (save-excursion
     (let* ((buffer (find-file file-path))
            (tree (read buffer)))
       (kill-buffer buffer)
       tree)))
 
-(defun radix-tree-keys(subtree prefix)
+(defun radix-tree-keys (subtree prefix)
   (let (keys '())
     (radix-tree-iter-mappings (radix-tree-subtree subtree prefix)
                               (lambda (key val)
