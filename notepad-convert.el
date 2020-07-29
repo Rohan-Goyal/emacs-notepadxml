@@ -92,7 +92,8 @@
 
                                         ; User-defined variables
                                         ; TODO: Wrap these in their own funcs: One for user-config, one for executing, and one for writing the template. Then call them all successively
-(setq file "~/tmp/userDefinedLanguages-master/UDLs/Awk_byVitaliyDovgan.xml")
+(setq file "/home/rohan/tmp/userDefinedLanguages-master/UDLs/Groovy_byGyrm.xml")
+; ~/tmp/userDefinedLanguages-master/UDLs/Awk_byVitaliyDovgan.xml")
 (setq base-table 'python-mode-syntax-table)
 (setq comment-string "#") ; Eventually, get this from the XML, but it's nontrivial
 (setq base-mode 'python-mode)
@@ -171,7 +172,7 @@ We create a barebones, unintelligent default. It has keys corresponding to both 
 
                      synTable
                      ))
-                   (setq font-lock-defaults '((,font-defaults))))
+                   (setq font-lock-defaults '(,font-defaults)))
                  ;;;###autoload
                  ,autolists
                  (provide (quote ,(make-symbol name)))
