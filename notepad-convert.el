@@ -55,18 +55,16 @@
 (defun test-node (node)
   (cl-search "Keywords" (xml-get-attribute node 'name)))
 
-
-(defun table-from-nodes (_nodelist) ;In this case, we expect nodelist to be the valid-nodes we defined earlier
+(defun table-from-nodes (nodelist) ;In this case, we expect nodelist to be the valid-nodes we defined earlier
   "Returns a hashtable where the keys are \"Keyword1\",etc. and the vals are lists of words"
-  (setq nodelist (reverse _nodelist)) ;
+  (setq nodes (reverse nodelist)) ;
   (setq adict (make-hash-table :test 'equal))
-  (setq nodelist-clean (seq-filter (lambda (y) (> (length y) 2)) nodelist)) ;Remove the "empty" sets of words
+  (setq nodelist-clean (seq-filter (lambda (y) (> (length y) 2)) nodes)) ;Remove the "empty" sets of words
   (dolist (kw nodelist-clean)
-    (puthash  (cdr (car (nth 1 kw))) (split-string (nth 2 kw)) adict)
+    (puthash  (cdr (car (nth 1 kw))) (split-string (nth 2 kw)) adict) ; Splits the long string into a list of words, and uses an unholy mix of CDRs and CARs to get the name of the requisite element
     )
   adict
   )
-
 
 (defun font-defaults-from-hash (hash conversion-table)
   (setq defaults ())
@@ -78,7 +76,7 @@
   defaults ; List of pairs. Each pair is like (messy-regex. font-lock-whatever-face)
   )
 
-(defun new-syntax-table (comment-start base) ;Base is the table from which to inherit. Comment start should be in the "char format"
+(defun new-syntax-table (comment-start base) ;Base is the table from which to inherit. Comment start can be a char or string
   (if (stringp comment-start)
       (setq comment-char (string-to-char comment-start))
     (setq comment-char comment-start))
@@ -92,15 +90,11 @@
   )
 
 
-
-
-                                        ; Actual execution takes place here.
-
-
                                         ; User-defined variables
-(setq file "./notepad++.xml")
-(setq base-table python-mode-syntax-table)
-(setq comment-string "%") ; Eventually, get this from the XML, but it's nontrivial
+                                        ; TODO: Wrap these in their own funcs: One for user-config, one for executing, and one for writing the template. Then call them all successively
+(setq file "~/tmp/userDefinedLanguages-master/UDLs/Awk_byVitaliyDovgan.xml")
+(setq base-table 'python-mode-syntax-table)
+(setq comment-string "#") ; Eventually, get this from the XML, but it's nontrivial
 (setq base-mode 'python-mode)
 
 (setq conversion-table-default
@@ -138,49 +132,62 @@ We create a barebones, unintelligent default. It has keys corresponding to both 
 (setq xmltree (xml-parse-file file))
 ;(write xmltree "./notepad-xml.el")
 
+(setq name (mode-name (mode-data (car xmltree))))
+(setq file-extensions (extensions (mode-data (car xmltree))))
+
 (setq valid-nodes (find-valid-nodes (car xmltree)))
 ;(write valid-nodes "./validnodes.el")
 
 (setq table (table-from-nodes valid-nodes))
 ;(write table "./table.el")
 
-
 (setq font-defaults (font-defaults-from-hash table conversion-table-default))
-(write font-defaults "./fontlock.el") ; Generates and saves fontlock-defaults.
+;(write font-defaults "./fontlock.el") ; Generates and saves fontlock-defaults.
 
 (setq words (apply #'append (hash-table-values table)))
 (setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
 (write radix "./radix.el")
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
-(setq my-table (new-syntax-table comment-string base-table))
+(setq my-table (new-syntax-table comment-string (symbol-value base-table)))
 ;(write my-table "./syntax-table.el") ; Not strictly necessary
 
 
                                         ; What follows is a template of sorts for the actual *-mode.el file. Should be quasiquoted and written to afile.
 ; TODO: Implement the autoloads
-(setq name (mode-name (mode-data (car xmltree))))
-(setq file-extensions (extensions (mode-data (car xmltree))))
-(setq autolists ())
+(setq autolists '(progn))
 (dolist (ext file-extensions)
-  (push `(add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t) autolists)
+  (setq autolists (append autolists `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
   )
+; Wrap the autolists in a progn, so the template can execute them all without issues
 
-(setq template `(
-                 ,(eval ";;;###autoload")
+(setq template `(progn
+                 ;;;###autoload
                  (define-derived-mode ,(make-symbol name) ,base-mode ,name
-                   ;(set-syntax-table ,my-table)
-                   (setq font-lock-defaults '((,font-defaults))))
+                   (set-syntax-table ;Directly inserting the table would be a disaster for size and readability
+                   (let ( (synTable (make-syntax-table ,base-table)))
+                     (modify-syntax-entry ,(string-to-char comment-string) "<" synTable)
+                     (modify-syntax-entry ?\n ">" synTable) ; Modifies the comment syntax
 
-                 ,(eval ";;;###autoload")
-                 ,(dolist (i autolists)
-                    i)
-                 (provide (make-symbol name))
+                     synTable
+                     ))
+                   (setq font-lock-defaults '((,font-defaults))))
+                 ;;;###autoload
+                 ,autolists
+                 (provide (quote ,(make-symbol name)))
                  )
       )
 
-(write template "./template.el")
-"User-defined vars:
+(write template (concat "./" name ".el"))
+
+"
+TODO:
+- Read user configuration
+- Manage the autoload thing. Maybe it can just ask to autoload instead of adding the comment somehow?
+"
+
+"
+User-defined vars:
 - Notepad file
 - Base synTable
 - Base mode
@@ -197,8 +204,8 @@ So it becomes an assoc-list, between the string \"Keywords1\" and the variable '
 How the user configures their thing:
 Filename, basetable, basemode, comment-string can all be set in a simple ELISP assoc-list elsewhere. So we specify a template, write that to a file, and ask them for the conf location when the script is called. Based on the vals read in the conf, generate the output \"*-mode.el\" file
 
-Conversion-table can also be defined in it's own file, based on the default. So write the default to a file, distribute that, and let them change it. When the program is run, it asks which file to read the conversiontable from."
-
+Conversion-table can also be defined in it's own file, based on the default. So write the default to a file, distribute that, and let them change it. When the program is run, it asks which file to read the conversiontable from.
+"
 
 "
 Nums, operators, delimiters can be fairly standard (maybe just inherit from prog-mode). Ignore indentation since that's tricky

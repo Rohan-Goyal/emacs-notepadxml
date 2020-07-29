@@ -32,7 +32,7 @@
     ('candidates
      (radix-tree-keys company-custom-dictionary--words-tree arg))
     ('keep-prefix)))
-;(provide 'company-custom-dictionary)
+(provide 'company-custom-dictionary)
 
 ;; Push the mode to the list of company backends
-;(push 'company-custom-dictionary company-backends)
+(push 'company-custom-dictionary company-backends)
