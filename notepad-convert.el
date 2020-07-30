@@ -12,7 +12,7 @@
 ;; In the long run, autocomplete should use the words defined.
 ;; TODO: Comprehensive notepad delimiter spec
 (defun write (obj file)
-  (write-region (format "%S" obj) nil file))
+  (write-region (prin1-to-string obj) nil file))
 
 (defun mode-data (head)
                                         ;Head is the root of the XML file.
@@ -125,7 +125,7 @@
   (setq xmltree (xml-parse-file filename))
 
   (setq name (mode-name (mode-data (car xmltree))))
-  (setq file-extensions (extensions (mode-data (car xmltree))))
+  (setq extensions (file-extensions (mode-data (car xmltree))))
 
   (setq table (table-from-nodes (find-valid-nodes (car xmltree))))
 
@@ -134,11 +134,11 @@
 
   (setq words (apply #'append (hash-table-values table)))
   (setq radix (seq-reduce (lambda (acc it) (radix-tree-insert acc it t)) words radix-tree-empty))
-  (write radix (concat "./" name "-radix.el"))
+  (write radix (concat "~/.emacs.d/notepad/" name "-radix.el"))
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
   (setq autolists '(progn))
-  (dolist (ext file-extensions)
+  (dolist (ext extensions)
     (setq autolists (append autolists `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
     ) ;; Wrap the autolists in a progn, so the template can execute them all without issues
   )
@@ -147,7 +147,7 @@
   (read-file-name "Select the config file from which to generate the language" "." "notepad-conf.el"))
 
 (defun choose-outfile (default-name)
-  (read-file-name "Where should the resulting mode definition go?" "~/.emacs.d" default-name nil default-name nil))
+  (read-file-name "Where should the resulting mode definition go?" "~/.emacs.d/notepad" default-name nil default-name nil))
 
 
                                         ; TODO: Implement the autoloads
@@ -177,6 +177,11 @@
                     )
         )
   (write template (choose-outfile (concat name ".el"))))
+
+
+
+(provide 'notepadxml-convert)
+
 " The idea is that the user chooses a file in their load-path to write the template to"
 
 "

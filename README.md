@@ -14,7 +14,7 @@
   (setq base-mode <mode>)
 ```
 
-The base table is the syntax table for the most similar language which emacs supports. The table for a given language is usually named '<language>-mode-syntax-table
+The base table is the syntax table for the most similar language which emacs supports. The table for a given language is usually named '\<language\>-mode-syntax-table
 
 For instance if the XML file is for the Groovy language, which is similar to Java, then the file would look like:
 ```
@@ -35,4 +35,11 @@ For instance if the XML file is for the Groovy language, which is similar to Jav
 In the user config file, you can define a variable called `conversion`. It takes the form of an associative list where the `car` is the name of the XML attribute containing those words, and the `cdr` is the font-lock face to be used. You may redefine them as you choose, based on the language.
 
 ## Autocomplete
-Working on generating company backends, based on https://justinhj.github.io/2018/10/24/radix-trees-dash-and-company-mode.html
+The program uses radix-trees to generate arbitrary company backends. The main conversion process `notepadxml-convert` also outputs a radix file to ~/.emacs.d/notepad/\<modename\>-radix.el. To have the backend be set up whenever the mode is activated, add the following to your .emacs file.
+
+```
+(require 'auto-gen-backend)
+(add-hook '<lang>-mode-hook (auto-gen-backend lang))
+```
+Source I ripped most of the functions from: https://justinhj.github.io/2018/10/24/radix-trees-dash-and-company-mode.html
+
