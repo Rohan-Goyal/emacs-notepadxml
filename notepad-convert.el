@@ -137,9 +137,9 @@
   (write radix (concat "~/.emacs.d/notepad/" name "-radix.el"))
                                         ; Generate a radix tree, so that the file ./company-custom.el can use it to produce a company-backend.
 
-  (setq autolists '(progn))
+  ;;(setq autolists '(progn))
   (dolist (ext extensions)
-    (setq autolists (append autolists `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
+    (setq autolists (append '(progn) `((add-to-list 'auto-mode-alist '(,ext . ,(make-symbol name)) t))))
     ) ;; Wrap the autolists in a progn, so the template can execute them all without issues
   )
 
